@@ -1,0 +1,18 @@
+scriptsDir: scripts/
+dataDir: data/ #should contain counts/{sampleID}/matrix/[matrix.mtx, genes.tsv, barcodes.tsv]
+outDir: analysis/
+cre_annotation: data/annotation/log/NL.CRE.info.tsv.gz
+sc_metadata: data/sc_metadata.csv
+Seurat_container: "docker://villadsw/seurat_v4:latest"
+Unibind_container: "docker://cbgr/unibind_enrichment:0.1"
+pycisTopic_container: "docker://jpcartailler/scenicplus:latest"
+BEDtools_container: "docker://biocontainers/bedtools:v2.28.0_cv2"
+Intervene_container: "docker://asntech/intervene:v0.6.5"
+LOLA_DB: data/hg38_robust_UniBind_LOLA.RDS
+BEDtools_g_file: data/hg38_chrom_sizes__shortened
+SCAFE_transcript_bed: data/SCAFE_genome_annotation/transcript.bed
+unibind_temp_dir: .unibind_temp
+diff_cre_min_proportion: 0.0001
+diff_cre_min_count: 4
+nTopics_LDA: 40
+nIter_LDA: 300

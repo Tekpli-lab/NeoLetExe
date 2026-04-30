@@ -1,0 +1,253 @@
+import os
+import pandas as pd
+
+# Config file
+configfile: "/storage/ilaydaa/neoletexe/analysis/repertoire/snake/preprocess/config.yaml"
+
+SAMPLES_T, = glob_wildcards(os.path.join(config["mixcr_tcr_dir"], "{sample_t}.clones.tsv"))
+SAMPLES_B, = glob_wildcards(os.path.join(config["mixcr_bcr_dir"], "{sample_b}.clones.tsv"))
+t_data = expand(os.path.join(config["mixcr_tcr_dir"], "{sample_t}.clones.tsv"), sample_t = SAMPLES_T)
+b_data = expand(os.path.join(config["mixcr_bcr_dir"], "{sample_b}.clones.tsv"), sample_b = SAMPLES_B)
+load_tcr_script = os.path.join(config["scripts_dir"], "01_load_mixcr_tcr.r")
+load_bcr_script = os.path.join(config["scripts_dir"], "02_load_mixcr_bcr.r")
+
+### Handling wildcards for matching right parameters to tcr and bcr
+# For rule filter according to rna
+tcr_cluster = config["t_clusters"]
+bcr_cluster = config["b_clusters"]
+
+def get_clusters_by_vdj(wildcards):
+    """Get the right clusters by looking at the wildcard in the params.
+    """
+    return tcr_cluster if wildcards.vdj == "tcr" else bcr_cluster
+
+# For rule sample exclusion
+def samples_to_exclude(wildcards):
+    """Get the right samples to exclude by looking at the wildcard in the params.
+    """
+    if wildcards.vdj == "tcr":
+        return config["t_exclude"]
+    else:
+        return config["b_exclude"]
+
+# For rule combine rna
+def match_seurat_object(wildcards):
+    """Get the right seurat object according to cell type to combine with the right scRepertoire object.
+    """
+    if wildcards.vdj == "tcr":
+        return config["t_cell_obj"]
+    else:
+        return config["b_cell_obj"]
+
+### Workflow
+rule all:
+    input:
+        expand(os.path.join(config["analysis_dir"], "tcr", "repertoire_analysis", "tcr_{chain}_repertoire_analysis.pdf"), chain=config["tcr_chains"]),
+        expand(os.path.join(config["analysis_dir"], "bcr", "repertoire_analysis", "bcr_{chain}_repertoire_analysis.pdf"), chain=config["bcr_chains"]),
+        expand(os.path.join(config["analysis_dir"], "{vdj}", "clonal_analysis", "{vdj}_{clone_call}_clonal_analysis.pdf"), vdj=config["vdj"], clone_call=config["clone_call"]),
+        expand(os.path.join(config["analysis_dir"], "tcr", "seurat_analysis", "clones_in_seurat_clusters.pdf"))
+
+rule load_tcr:
+    input:
+        contigs = t_data
+    output:
+        out = os.path.join(config["analysis_dir"], "tcr", "load", "repertoire_tcr.rds")
+    params:
+        scr = load_tcr_script,
+        names = ",".join(SAMPLES_T),
+        na = config["remove_na"],
+        rm_multi = config["remove_multi"],
+        f_multi = config["filter_multi"],
+        times = config["time_points"]
+    shell:
+        """
+        if [ -n "{config[module_name]}" ]; then {config[module_name]}; fi
+        Rscript {params.scr} \
+                --contigs {input.contigs} \
+                --names {params.names} \
+                --out {output.out} \
+                --na {params.na} \
+                --rem_multi {params.rm_multi} \
+                --fil_multi {params.f_multi} \
+                --times {params.times}
+        """
+
+rule load_bcr:
+    input:
+        contigs = b_data
+    output:
+        out = os.path.join(config["analysis_dir"], "bcr", "load", "repertoire_bcr.rds")
+    params:
+        scr = load_bcr_script,
+        names = ",".join(SAMPLES_B),
+        na = config["remove_na"],
+        rm_multi = config["remove_multi"],
+        f_multi = config["filter_multi"],
+        thres = config["threshold"],
+        times = config["time_points"]
+    shell:
+        """
+        if [ -n "{config[module_name]}" ]; then {config[module_name]}; fi
+        Rscript {params.scr} \
+                --contigs {input.contigs} \
+                --names {params.names} \
+                --out {output.out} \
+                --na {params.na} \
+                --rem_multi {params.rm_multi} \
+                --fil_multi {params.f_multi} \
+                --threshold {params.thres} \
+                --times {params.times}
+        """
+
+rule filter_chimeric:
+    """Filter cells that have both TCR and BCR chains.
+    """
+    input:
+        tcr = os.path.join(config["analysis_dir"], "tcr", "load", "repertoire_tcr.rds"),
+        bcr = os.path.join(config["analysis_dir"], "bcr", "load", "repertoire_bcr.rds")
+    output:
+        tcr = os.path.join(config["analysis_dir"], "tcr", "filter_chimeric", "non_chimeric_repertoire_tcr.rds"),
+        bcr = os.path.join(config["analysis_dir"], "bcr", "filter_chimeric", "non_chimeric_repertoire_bcr.rds"),
+        plot = os.path.join(config["analysis_dir"], "tcr", "filter_chimeric", "plot_chimeric_cell_counts.pdf")
+    params:
+        scr = os.path.join(config["scripts_dir"], "03_filter_chimeric.r")
+    shell:
+        """
+        if [ -n "{config[module_name]}" ]; then {config[module_name]}; fi
+        Rscript {params.scr} \
+                --tcr {input.tcr} \
+                --bcr {input.bcr} \
+                --tcr_out {output.tcr} \
+                --bcr_out {output.bcr} \
+                --plot {output.plot}
+        """
+
+
+
+rule filter_according_to_rna:
+    """Keep only the cells belonging to either T cells or B & Plasma cell clusters in each object.
+    """
+    input:
+        obj = os.path.join(config["analysis_dir"], "{vdj}", "filter_chimeric", "non_chimeric_repertoire_{vdj}.rds"),
+        #obj = os.path.join(config["analysis_dir"], "{vdj}", "load", "repertoire_{vdj}.rds"),
+        seu = config["seurat_meta"]
+    output:
+        out = os.path.join(config["analysis_dir"], "{vdj}", "filter_according_to_rna", "filtered_repertoire_{vdj}.rds"),
+        plot = os.path.join(config["analysis_dir"], "{vdj}", "filter_according_to_rna", "{vdj}_ratios_in_detail_ids.pdf")
+    params:
+        scr = os.path.join(config["scripts_dir"], "04_filter_cells.r"),
+        align_tool = config["align_tool"],
+        col_name1 = config["col_name1"],
+        col_name2 = config["col_name2"],
+        # Use a lambda function to access the wildcard and get the right clusters.
+        clusters = lambda wildcards: get_clusters_by_vdj(wildcards)
+    shell:
+        """
+        if [ -n "{config[module_name]}" ]; then {config[module_name]}; fi
+        Rscript {params.scr} \
+                --object {input.obj}  \
+                --seurat {input.seu}  \
+                --align_tool {params.align_tool} \
+                --col1 {params.col_name1} \
+                --col2 {params.col_name2} \
+                --clusters {params.clusters} \
+                --plot {output.plot} \
+                --output {output.out}
+        """
+
+rule clonal_analysis:
+    """QC plots for clones.
+    """
+    input:
+        obj = os.path.join(config["analysis_dir"], "{vdj}", "filter_according_to_rna", "filtered_repertoire_{vdj}.rds")
+    output:
+        out = os.path.join(config["analysis_dir"], "{vdj}", "clonal_analysis", "{vdj}_{clone_call}_clonal_analysis.pdf")
+    params:
+        scr = os.path.join(config["scripts_dir"], "05_clonal_analysis.r"),
+        clone = "{clone_call}"
+    shell:
+        """
+        if [ -n "{config[module_name]}" ]; then {config[module_name]}; fi
+        Rscript {params.scr} --object {input.obj} --output {output.out} --clone {params.clone} --vdj {wildcards.vdj}
+        """
+
+rule repertoire_analysis:
+    """QC plots for chains.
+    """
+    input:
+        obj = os.path.join(config["analysis_dir"], "{vdj}", "filter_according_to_rna", "filtered_repertoire_{vdj}.rds")
+    output:
+        out = os.path.join(config["analysis_dir"], "{vdj}", "repertoire_analysis", "{vdj}_{chain}_repertoire_analysis.pdf")
+    params:
+        scr = os.path.join(config["scripts_dir"], "06_repertoire_analysis.r"),
+        chain = "{chain}"
+    shell:
+        """
+        if [ -n "{config[module_name]}" ]; then {config[module_name]}; fi
+        Rscript {params.scr} --object {input.obj} --output {output.out}  --vdj {wildcards.vdj} --chain {wildcards.chain}
+        """
+
+rule sample_exclusion:
+    """Exclude patients that do not pass QC.
+    """
+    input:
+        obj = os.path.join(config["analysis_dir"], "{vdj}", "filter_according_to_rna", "filtered_repertoire_{vdj}.rds")
+    output:
+        out = os.path.join(config["analysis_dir"], "{vdj}", "sample_exclusion", "excluded_repertoire_{vdj}.rds")
+    params:
+        scr = os.path.join(config["scripts_dir"], "07_sample_exclusion.r"),
+        samples = lambda wildcards: samples_to_exclude(wildcards) # samples to be excluded
+    shell:
+        """
+        if [ -n "{config[module_name]}" ]; then {config[module_name]}; fi
+        Rscript {params.scr} \
+                --object {input.obj} \
+                --output {output.out} \
+                --samples {params.samples}
+        """ 
+
+rule combine_rna:
+    """ Combine scRepertoire object with corresponding Seurat object (T cell or B cell).
+    """
+    input:
+        vdj = os.path.join(config["analysis_dir"], "{vdj}", "sample_exclusion", "excluded_repertoire_{vdj}.rds"),
+        seu = lambda wildcards: match_seurat_object(wildcards), # Seurat object filtered to have T or B cells
+    output:
+        out = os.path.join(config["analysis_dir"], "{vdj}", "combine_rna", "combined_seurat_repertoire_{vdj}.rds"),
+        meta = os.path.join(config["analysis_dir"], "{vdj}", "combine_rna", "combined_metadata_repertoire_{vdj}.rds")
+    params:
+        scr = os.path.join(config["scripts_dir"], "08_combine_rna.r"),
+        clone_call = config["clone_call_exp"],
+        align_tool = config["align_tool"]
+    shell:
+        """
+        if [ -n "{config[module_name]}" ]; then {config[module_name]}; fi
+        Rscript {params.scr} \
+                --vdj {input.vdj} \
+                --seurat {input.seu} \
+                --output {output.out} \
+                --meta_out {output.meta} \
+                --call {params.clone_call} \
+                --align_tool {params.align_tool}
+        """
+
+rule seurat_analysis:
+    """Investigate clones and Seurat clusters.
+    """
+    input:
+        obj = os.path.join(config["analysis_dir"], "{vdj}", "combine_rna", "combined_seurat_repertoire_{vdj}.rds")
+    output:
+        plot = os.path.join(config["analysis_dir"], "{vdj}", "seurat_analysis", "clones_in_seurat_clusters.pdf")
+    params:
+        scr = os.path.join(config["scripts_dir"], "09_seurat_analysis.r"),
+        clone_call = config["clone_call_exp"],
+        clusters = config["cluster_names_rule_seurat_analysis"]
+    shell:
+        """
+        if [ -n "{config[module_name]}" ]; then {config[module_name]}; fi
+        Rscript {params.scr} \
+                --object {input.obj} \
+                --plot {output.plot} \
+                --call {params.clone_call} \
+                --clusters {params.clusters}
+        """

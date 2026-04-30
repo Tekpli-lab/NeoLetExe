@@ -1,0 +1,338 @@
+import os
+import glob
+
+configfile: "config.yaml"
+
+scriptsDir = config["scriptsDir"]
+dataDir = config["dataDir"]
+outDir = config["outDir"]
+cre_annotation = config["cre_annotation"]
+sc_metadata =  config["sc_metadata"]
+diff_cre_min_proportion = config["diff_cre_min_proportion"]
+diff_cre_min_count =  config["diff_cre_min_count"]
+nTopics_LDA = config["nTopics_LDA"]
+nIter_LDA = config["nIter_LDA"]
+
+SAMPLE, = glob_wildcards(os.path.join(dataDir, "counts", "{sample}", "matrix", "matrix.mtx"))
+MALIGANT_CONTRASTS = ["Malignant_4mnd_vs_baseline", "Malignant_2mnd_vs_baseline", "Malignant_baseline_vs_2mnd", "Malignant_baseline_vs_4mnd", "response_GR_A_vs_C", "response_GR_C_vs_A", "response_GR_A_vs_B", "response_GR_B_vs_A", "response_BR_A_vs_C", "response_BR_A_vs_B", "response_BR_B_vs_A", "response_BR_C_vs_A"]
+CLONE_CONTRASTS = ["clones_res_A_vs_B", "clones_res_A_vs_C", "clones_res_B_vs_A", "clones_res_C_vs_A", "clones_sens_A_vs_B", "clones_sens_A_vs_C", "clones_sens_B_vs_A", "clones_sens_C_vs_A"]
+ARM_CONTRASTS = ["arm_EXE-LET_A_vs_C", "arm_EXE-LET_C_vs_A", "arm_LET-EXE_A_vs_C", "arm_LET-EXE_C_vs_A"]
+DIFF_CRE_META_CONTRAST = ["response_GR_A_vs_C__vs__response_GR_C_vs_A", "response_BR_A_vs_C__vs__response_BR_C_vs_A", "arm_EXE-LET_A_vs_C__vs__arm_EXE-LET_C_vs_A__ESR1_AR__all__distal_cre", "arm_LET-EXE_A_vs_C__vs__arm_LET-EXE_C_vs_A__ESR1_AR__all__distal_cre"]
+CRE_SETS, = glob_wildcards(os.path.join(dataDir, "CRE_sets", "{CREs}.bed"))
+
+"arm_EXE-LET_A_vs_C__vs__arm_EXE-LET_C_vs_A__ESR1_AR__all__distal_cre", "arm_LET-EXE_A_vs_C__vs__arm_LET-EXE_C_vs_A__ESR1_AR__all__distal_cre"
+include: "snakefile_pycistopic.sk"
+include: "snakefile_dCRE_overlap.sk"
+
+
+
+def get_wildcards_from_metadata(var, file = sc_metadata):
+    with open(file, 'r') as f:
+        # Read the header to find the index of the variable
+        header = [h.strip().strip('"') for h in f.readline().strip().split(',')]
+        if var not in header:
+            raise ValueError(f"Variable '{var}' not found in header")
+        var_index = header.index(var)
+
+        # Read the file and extract unique values for the given variable
+        wildcard_set = set()
+        for line in f:
+            fields = [field.strip('"') for field in line.strip().split(',')]
+            if len(fields) > var_index:
+                wildcard_set.add(fields[var_index])
+
+    # Convert the set to a sorted list
+    wildcard_list = sorted(wildcard_set)
+    return wildcard_list
+
+
+
+rule all:
+        input:
+               os.path.join(outDir, "results", "palo_umap", "all_cells__distal_cre__LDA_harmony.pdf"), 																			# Fig. 6 A
+               expand(os.path.join(outDir, "results", "unibind_plots", "{proximity}", "main.ids.cor__{cell_type}__{proximity}.pdf"), cell_type = get_wildcards_from_metadata("main.ids.cor"), proximity = ["distal_cre", "proximal"]),			# Fig. 6 B, C, D, E, Sup. Fig. 14 A, B 
+               expand(os.path.join(outDir, "results", "unibind_plots", "{proximity}", "{contrast}__{proximity}.pdf"), contrast = MALIGANT_CONTRASTS, proximity = ["distal_cre"]), 									# Fig. 6 F,G,H,I,J,K
+               expand(os.path.join(outDir, "results", "boxplots", "{contrast}", "{contrast}__{TF}__{proximity}.pdf"), contrast = ["main.ids.cor__Malignant_cells"], proximity = ["distal_cre"], TF = ["ESR1_AR", "ESR1", "AR"]),		        # Fig. 6 L, M, Sup. Fig. 16 A, B, C, D
+               expand(os.path.join(outDir, "results", "dCRE_overlaps", "{proximity}_overlaps.pdf"), proximity = ["distal_cre"]),															# Sup. Fig. 13 C
+               expand(os.path.join(outDir, "results", "intervene", "Upset_main.ids.cor__{proximity}", "output", "Intervene_upset.pdf"), proximity = ["proximal", "distal_cre"]),									# Sup. Fig. 13 D,E
+               expand(os.path.join(outDir, "results", "unibind_plots", "{proximity}", "{contrast}__{proximity}.pdf"), contrast = CLONE_CONTRASTS, proximity = ["distal_cre"]),                                                                          # Sup. Fig. 15 A,B,C,D
+               expand(os.path.join(outDir, "results", "intervene", "{contrast}__TFBS", "{TF}__{proximity}", "Intervene_upset.pdf"),  contrast = ["main.ids.cor__Malignant_cells"], proximity = ["distal_cre"], TF = ["ESR1_AR_FOXA1"]),			# Sup. Fig. 15 E
+               expand(os.path.join(outDir, "results", "Upset_Stacked_bar_all__{proximity}", "{meta_contrast}__{TF}__all__{proximity}.pdf"), meta_contrast = DIFF_CRE_META_CONTRAST, TF = ["ESR1_AR"], proximity = ["distal_cre"]),			# Sup. Fig. 15 F, 18 E
+               expand(os.path.join(outDir, "results", "unibind_plots", "{proximity}", "{contrast}__{proximity}.pdf"), contrast = ARM_CONTRASTS, proximity = ["distal_cre"])                                                                             # Sup. Fig. 18 A,B,C,D
+
+
+
+rule combine_samples:
+        input:
+                sample_list = expand(os.path.join(dataDir, "counts", "{sample}", "matrix"), sample = SAMPLE),
+                sc_metadata = sc_metadata
+        output:
+                os.path.join(outDir, "seurat_object_unprocessed", "all_cells.rds")
+        params:
+                outDir = outDir,
+                dataDir = dataDir,
+                SAMPLE = SAMPLE,
+                script = os.path.join(scriptsDir, "combine_samples.R")
+        singularity: config["Seurat_container"]
+        shell:
+                """
+                Rscript {params.script} \
+                    --outDir {params.outDir} \
+                    --dataDir {params.dataDir} \
+                    --sample_names_list "{params.SAMPLE}" \
+                    --sc_metadata {input.sc_metadata}
+                """
+
+
+rule split_data_by_proximity:
+        input:
+                os.path.join(outDir, "seurat_object_unprocessed", "{cell_type}.rds")
+        output:
+                expand(os.path.join(outDir, "seurat_object_split", "{proximity}", "{{cell_type}}__{proximity}.rds"), proximity = ["proximal", "distal_cre"])
+        params:
+                script = os.path.join(scriptsDir, "split_proximity.R"),
+                cre_annotation = cre_annotation,
+                outDir = outDir
+        singularity: config["Seurat_container"]
+        shell:
+                """
+                Rscript {params.script} \
+                        --outDir {params.outDir} \
+                        --input_cell_type {wildcards.cell_type} \
+                        --cre_annotation {params.cre_annotation}
+                """
+
+
+rule write_to_mtx:
+        input:
+                os.path.join(outDir, "seurat_object_split", "{proximity}", "{cell_type}__{proximity}.rds")
+        output:
+                os.path.join(outDir, "count_mat", "{cell_type}__{proximity}", "count_mat.mtx"),
+                os.path.join(outDir, "count_mat", "{cell_type}__{proximity}", "rownames.txt"),
+                os.path.join(outDir, "count_mat", "{cell_type}__{proximity}", "colnames.txt")
+        params:
+                script = os.path.join(scriptsDir, "write_to_mtx.R")
+        singularity: config["Seurat_container"]
+        shell:
+                """
+                DIR="$(dirname {output[0]})"
+                Rscript {params.script} \
+                        --input {input} \
+                        --outDir $DIR
+                """
+
+
+
+#######################
+## Differential CREs ##
+#######################
+
+rule contrast_make_cell_groups:
+        input:
+                sc_metadata
+        output:
+                os.path.join(outDir, "contrasts", "all_cells_model", "{contrast}", "cell_groups.csv")
+        params:
+                script = os.path.join(scriptsDir, "contrast_group_cells.R"),
+                metadata_column_list = ["main.ids.cor", "minor.ids", "final.ids", "orig.ident", "patient_number", "improved_main_ids", "improved_minor_ids"]
+        singularity: config["Seurat_container"]
+        shell:
+               """
+               Rscript {params.script} \
+                        --sc_metadata {input} \
+                        --contrast {wildcards.contrast} \
+                        --output {output} \
+                        --metadata_column_list "{params.metadata_column_list}"
+               """
+
+
+
+rule contrast_diff_cre_fisher:
+        input:
+                os.path.join(outDir, "seurat_object_split", "{proximity}", "all_cells__{proximity}.rds"),
+                os.path.join(outDir, "contrasts", "all_cells_model", "{contrast}", "cell_groups.csv")
+        output:
+                os.path.join(outDir, "contrasts", "all_cells_model", "{contrast}", "{proximity}_contig_tests", "cre_unibind_universe.bed"),
+                expand(os.path.join(outDir, "contrasts", "all_cells_model", "{{contrast}}", "{{proximity}}_contig_tests", "diff_cre_fisher__{ground}.bed"), ground = ["foreground", "background"]),
+                os.path.join(outDir, "contrasts", "all_cells_model", "{contrast}", "{proximity}_contig_tests", "diff_cre_fisher__foreground.csv"),
+                expand(os.path.join(outDir, "contrasts", "all_cells_model", "{{contrast}}", "{{proximity}}_contig_tests", "hist_CRE_fisher_active_cells_{ground}.pdf"), ground = ["foreground", "background", "combined"])
+        params:
+                script = os.path.join(scriptsDir, "compute_fisher_diff_cre.R"),
+                outDir = outDir,
+                diff_cre_min_proportion = diff_cre_min_proportion,
+                diff_cre_min_count = diff_cre_min_count
+        singularity: config["Seurat_container"]
+        shell:
+               """
+               Rscript {params.script} \
+                        --contrast {wildcards.contrast} \
+                        --outDir {params.outDir} \
+                        --proximity {wildcards.proximity} \
+                        --min_proportion {params.diff_cre_min_proportion} \
+                        --min_count {params.diff_cre_min_count}
+               """
+
+rule Upset_plot_copy_input:
+        input:
+                os.path.join(outDir, "contrasts", "all_cells_model", "{meta}__{item}", "{proximity}_contig_tests", "diff_cre_fisher__foreground.bed")
+        output:
+                os.path.join(outDir, "results", "intervene", "Upset_{meta}__{proximity}", "input", "{item}.bed")
+        shell:
+                """
+                cp {input} {output}
+                """
+
+rule Upset_plot_meta_contrast:
+        input:
+                lambda wildcards: [os.path.join(outDir, "results", "intervene", f"Upset_{wildcards.meta}__{wildcards.proximity}", "input", f"{item}.bed") for item in get_wildcards_from_metadata(wildcards.meta)]
+        output:
+                os.path.join(outDir, "results", "intervene", "Upset_{meta}__{proximity}", "output", "Intervene_upset.pdf")
+        singularity: config["Intervene_container"]
+        shell:
+                """
+                output_dir=$(dirname {output})
+                intervene upset -i {input} --output ${{output_dir}}
+                """
+
+###################
+## TFBS analysis ##
+###################
+
+### Unibind enrichment ###
+
+rule unibind__enrichment:
+        input:
+                foreground = os.path.join(outDir, "contrasts", "all_cells_model", "{contrast}", "{proximity}_contig_tests", "diff_cre_fisher__{ground}.bed"),
+                background = os.path.join(outDir,"contrasts", "all_cells_model", "{contrast}", "{proximity}_contig_tests", "cre_unibind_universe.bed")
+        output:
+                os.path.join(outDir, "contrasts", "all_cells_model", "{contrast}", "unibind_{proximity}__fisher__{ground}", "allEnrichments.tsv")
+        params:
+                LOLA_db = config["LOLA_DB"]
+        resources: tmpdir = config["unibind_temp_dir"]
+        singularity: config["Unibind_container"]
+        shell:
+                """
+                DIR="$(dirname {output})"
+                /opt/software/unibind_enrichment/bin/UniBind_enrich.sh oneSetBg \
+                        {params.LOLA_db} \
+                        {input.foreground} \
+                        {input.background} \
+                        $DIR
+                """
+
+rule copy_unibind_plots:
+        input:
+                os.path.join(outDir, "contrasts", "all_cells_model", "{contrast}", "unibind_{proximity}__fisher__foreground", "allEnrichments.tsv"),
+        output:
+                os.path.join(outDir, "results", "unibind_plots", "{proximity}", "{contrast}__{proximity}.pdf")
+        shell:
+               """
+               cp $(dirname {input})/allEnrichments_swarm.pdf {output}
+               cp {input} {output.tsv}
+               """
+
+
+
+### Annotate TFBSs ###
+rule TFBS_annotation_unibind_all:
+    input:
+        diff_cre_bed = os.path.join(outDir, "contrasts", "all_cells_model", "{contrast}", "{proximity}_contig_tests", "diff_cre_fisher__foreground.bed"),
+        enrichment = os.path.join(outDir, "contrasts", "all_cells_model", "{contrast}", "unibind_{proximity}__fisher__foreground", "allEnrichments.tsv")
+    output:
+        os.path.join(outDir, "contrasts", "all_cells_model", "{contrast}", "TF_analysis", "all_TFBS_{proximity}", "TF_CRE_bed", "{TF}.bed")
+    params:
+        script = os.path.join(scriptsDir, "annotate_all_TFBS_diff_cre.R"),
+        LOLA_db = config["LOLA_DB"]
+    singularity: config["Seurat_container"]
+    shell:
+        """
+        DIR="$(dirname {output})"
+        Rscript {params.script} --output_dir $DIR --diff_cre {input.diff_cre_bed} --enrichment_tsv {input.enrichment} --LOLA_db {params.LOLA_db} --TF_list "{wildcards.TF}"
+        """
+
+
+
+### Intervene Upset plots ###
+rule TF_upset_contrast_all_TFBS:
+        input:
+                lambda wildcards: [os.path.join(outDir, "contrasts", "all_cells_model", wildcards.contrast, "TF_analysis", "all_TFBS_{proximity}", "TF_CRE_bed", f"{tf}.bed") for tf in wildcards.TF.split('_')]
+        output:
+                pdf = os.path.join(outDir, "contrasts", "all_cells_model", "{contrast}", "TF_analysis", "all_TFBS_{proximity}", "Upset_plots", "{TF}", "Intervene_upset.pdf"),
+                txt = os.path.join(outDir, "contrasts", "all_cells_model", "{contrast}", "TF_analysis", "all_TFBS_{proximity}", "Upset_plots", "{TF}", "Intervene_upset_combinations.txt")
+        singularity: config["Intervene_container"]
+        shell:
+                """
+                DIR="$(dirname {output.pdf})"
+                intervene upset -i {input} --output $DIR
+                """
+
+rule copy_TF_upset:
+        input:
+                pdf = os.path.join(outDir, "contrasts", "all_cells_model", "{contrast}", "TF_analysis", "all_TFBS_{proximity}", "Upset_plots", "{TF}", "Intervene_upset.pdf"),
+                txt = os.path.join(outDir, "contrasts", "all_cells_model", "{contrast}", "TF_analysis", "all_TFBS_{proximity}", "Upset_plots", "{TF}", "Intervene_upset_combinations.txt")
+        output:
+                pdf = os.path.join(outDir, "results", "intervene", "{contrast}__TFBS", "{TF}__{proximity}", "Intervene_upset.pdf"),
+                txt = os.path.join(outDir, "results", "intervene", "{contrast}__TFBS", "{TF}__{proximity}", "Intervene_upset_combinations.txt")
+        shell:
+               """
+               cp {input.pdf} {output.pdf}
+               cp {input.txt} {output.txt}
+               """
+
+
+### Active enhancers with TFBS boxplots ###
+rule boxplots_all_TFBS:
+    input:
+        seurat_object = os.path.join(outDir, "seurat_object_split", "{proximity}", "all_cells__{proximity}.rds"),
+        pos_bed_file = lambda wildcards: [os.path.join(outDir, "contrasts", "all_cells_model", wildcards.contrast, "TF_analysis", "all_TFBS_{proximity}", "TF_CRE_bed", f"{tf}.bed") for tf in wildcards.TF.split('_no_')[0].split('_')],
+        neg_bed_file = lambda wildcards: [] if '_no_' not in wildcards.TF else [os.path.join(outDir, "contrasts", "all_cells_model", wildcards.contrast, "TF_analysis", "all_TFBS_{proximity}", "TF_CRE_bed", f"{tf}.bed") for tf in wildcards.TF.split('_no_', 1)[1].split('_')] 
+    output:
+        pdf = os.path.join(outDir, "contrasts", "all_cells_model", "{contrast}", "TF_analysis", "all_TFBS_{proximity}", "TF_boxplots", "{patient_split}", "{patient_split}__{main_id}__{TF}.pdf"),
+        rds = os.path.join(outDir, "contrasts", "all_cells_model", "{contrast}", "TF_analysis", "all_TFBS_{proximity}", "TF_boxplots", "{patient_split}", "{patient_split}__{main_id}__{TF}.rds")
+    params:
+        script = os.path.join(scriptsDir, "simple_set_ratio_boxplot.R")
+    singularity: config["Seurat_container"]
+    shell:
+        """
+        DIR="$(dirname {output.pdf})"
+        Rscript {params.script} --seurat_object {input.seurat_object} --output_dir $DIR --pos_bed_files "{input.pos_bed_file}" --neg_bed_files "{input.neg_bed_file}" --main_id {wildcards.main_id} --tf_name {wildcards.TF} --patient_split {wildcards.patient_split}
+        """
+
+rule copy_boxplots:
+        input:
+                pdf = os.path.join(outDir, "contrasts", "all_cells_model", "{contrast}", "TF_analysis", "all_TFBS_{proximity}", "TF_boxplots", "{patient_split}", "{patient_split}__{main_id}__{TF}.pdf"),
+                rds = os.path.join(outDir, "contrasts", "all_cells_model", "{contrast}", "TF_analysis", "all_TFBS_{proximity}", "TF_boxplots", "{patient_split}", "{patient_split}__{main_id}__{TF}.rds")              
+        output:
+                pdf = os.path.join(outDir, "results", "boxplots", "{contrast}__{patient_split}", "{patient_split}__{contrast}__{TF}__{proximity}.pdf"),
+                rds = os.path.join(outDir, "results", "boxplots", "{contrast}__{patient_split}", "{patient_split}__{contrast}__{TF}__{proximity}.rds")
+        shell:
+               """
+               cp {input.pdf} {output.pdf}
+               cp {input.rds} {output.rds}
+               """
+
+
+rule Upset_stacked_bar_test:
+    input:
+        Intervene_combinations_fore = os.path.join(outDir, "contrasts", "all_cells_model", "{contrast_fore}", "TF_analysis", "{ub_mode}_TFBS_{proximity}", "Upset_plots", "{TF}", "Intervene_upset_combinations.txt"),
+        diff_cre_bed_fore = os.path.join(outDir, "contrasts", "all_cells_model", "{contrast_fore}", "{proximity}_contig_tests", "diff_cre_fisher__foreground.bed"),
+        Intervene_combinations_back = os.path.join(outDir, "contrasts", "all_cells_model", "{contrast_back}", "TF_analysis", "{ub_mode}_TFBS_{proximity}", "Upset_plots", "{TF}", "Intervene_upset_combinations.txt"),
+        diff_cre_bed_back = os.path.join(outDir, "contrasts", "all_cells_model", "{contrast_back}", "{proximity}_contig_tests", "diff_cre_fisher__foreground.bed")
+    output:
+        os.path.join(outDir, "contrasts", "all_cells_model", "{contrast_fore}", "TF_analysis", "Upset_Stacked_bar_{ub_mode}__{proximity}", "{contrast_fore}__vs__{contrast_back}__{TF}__{ub_mode}__{proximity}.pdf"),
+        os.path.join(outDir, "results", "Upset_Stacked_bar_{ub_mode}__{proximity}", "{contrast_fore}__vs__{contrast_back}__{TF}__{ub_mode}__{proximity}.pdf")
+    params:
+        script = os.path.join(scriptsDir, "Upset_proportion_test.R")
+    singularity: config["Seurat_container"]
+    shell:
+        """
+        Rscript {params.script} \
+                --output {output[0]} \
+                --Intervene_upset_combinations {input.Intervene_combinations_fore} \
+                --diff_cre {input.diff_cre_bed_fore} \
+                --Intervene_upset_combinations2 {input.Intervene_combinations_back} \
+                --diff_cre2 {input.diff_cre_bed_back} \
+                --label1 {wildcards.contrast_fore} \
+                --label2 {wildcards.contrast_back}
+        cp {output[0]} {output[1]}
+        """

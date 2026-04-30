@@ -1,0 +1,110 @@
+rule pycisTopic_make_object:
+        input:
+                counts = os.path.join(outDir, "count_mat", "{cell_type}__{proximity}", "count_mat.mtx"),
+                metadata = sc_metadata
+        output:
+                os.path.join(outDir,"pycisTopic", "{proximity}", "{cell_type}", "{cell_type}_{proximity}.pkl")
+        params:
+                script = os.path.join(scriptsDir, "make_pycistopic_object.py")
+        singularity: config["pycisTopic_container"]
+        shell:
+                """
+                DIR="$(dirname {input.counts})"
+                python {params.script} \
+                        --input_counts_dir $DIR \
+                        --input_metadata {input.metadata} \
+                        --output_pkl {output}
+                """
+
+rule pycisTopic_run_model:
+	input:
+		os.path.join(outDir, "pycisTopic", "{proximity}", "{cell_type}", "{cell_type}_{proximity}.pkl")
+	output:
+		os.path.join(outDir,"pycisTopic", "{proximity}", "{cell_type}", "models", "Topic{nTopics_model}.pkl")
+	params:
+		script = os.path.join(scriptsDir, "pycistopic_run_model.py"),
+		outDir = outDir,
+                nIter = nIter_LDA
+	singularity: config["pycisTopic_container"]
+	shell:
+		"""
+		python {params.script} \
+                        --input_object {input} \
+                        --output_model {output} \
+			--nTopics {wildcards.nTopics_model} \
+                        --nIter {params.nIter}
+		"""
+
+rule pycisTopic_export_to_mat_harmony:
+        input:
+                object = os.path.join(outDir,"pycisTopic", "{proximity}", "{cell_type}", "{cell_type}_{proximity}.pkl"),
+                model = os.path.join(outDir,"pycisTopic", "{proximity}", "{cell_type}", "models", f"Topic{nTopics_LDA}.pkl")
+        output:
+                os.path.join(outDir, "processed_matrix", "LDA_harmony", "{proximity}", "{cell_type}", "mat.mtx"),
+                os.path.join(outDir, "processed_matrix", "LDA_harmony", "{proximity}", "{cell_type}", "cell_names.txt"),
+                os.path.join(outDir, "processed_matrix", "LDA_harmony", "{proximity}", "{cell_type}", "dim_names.txt")
+        params:
+                script = os.path.join(scriptsDir, "pycistopic_run_harmony.py")
+        singularity: config["pycisTopic_container"]
+        shell:
+                """
+                DIR="$(dirname {output[0]})"
+                python {params.script} \
+                       --input_object {input.object} \
+                       --input_model {input.model} \
+                       --output_dir $DIR
+                """
+
+rule read_from_method_to_seurat:
+        input:
+                mat = os.path.join(outDir, "processed_matrix", "{method}", "{proximity}", "{cell_type}", "mat.mtx"),
+                cell_names = os.path.join(outDir, "processed_matrix", "{method}", "{proximity}", "{cell_type}", "cell_names.txt"),
+                dim_names = os.path.join(outDir, "processed_matrix", "{method}", "{proximity}", "{cell_type}", "dim_names.txt"),
+                seurat_object = os.path.join(outDir, "seurat_object_split", "{proximity}", "{cell_type}__{proximity}.rds")
+        output:
+                os.path.join(outDir, "dim_reduc_seurat_object", "{method}", "{proximity}", "{cell_type}__{proximity}__{method}.rds")
+        params:
+                script = os.path.join(scriptsDir, "read_processed_mat_to_seurat.R")
+        singularity: config["Seurat_container"]
+        shell:
+                """
+                Rscript {params.script} \
+                                --input_mat {input.mat} \
+                                --input_cell_names {input.cell_names} \
+                                --input_dim_names {input.dim_names} \
+                                --input_seurat {input.seurat_object} \
+                                --output_seurat {output}
+                """
+
+rule run_umap_and_cluster:
+        input:
+                os.path.join(outDir, "dim_reduc_seurat_object", "{method}", "{proximity}", "{cell_type}__{proximity}__{method}.rds")
+        output:
+                os.path.join(outDir, "seurat_combined_clustered", "{method}", "{proximity}", "{cell_type}__{proximity}__{method}__clustered.rds")
+        params:
+                script = os.path.join(scriptsDir, "run_umap_cluster.R")
+        singularity: config["Seurat_container"]
+        shell:
+               """
+               Rscript {params.script} \
+                        --input {input} \
+                        --output {output}
+               """
+
+
+rule plot_palo_umap:
+        input:
+                os.path.join(outDir, "seurat_combined_clustered", "{method}", "{proximity}", "{cell_type}__{proximity}__{method}__clustered.rds")
+        output:
+                os.path.join(outDir, "results", "palo_umap", "{cell_type}__{proximity}__{method}.pdf")
+        params:
+                script = os.path.join(scriptsDir, "plot_palo_umap.R")
+        singularity: config["Seurat_container"]
+        shell:
+                """
+                Rscript {params.script} \
+                                --input {input} \
+                                --output {output}
+                """
+
+

@@ -1,0 +1,104 @@
+import os
+import glob
+
+CRE_SETS, = glob_wildcards(os.path.join(dataDir, "CRE_sets", "{CREs}.bed"))
+
+rule make_annotated_transcript_bed:
+        input:
+                config["SCAFE_transcript_bed"]
+        output:
+                annotated_tss = os.path.join(outDir, "dCRE_overlaps", "annotated_tss.bed")
+        shell:
+                """
+                while IFS=$'\t' read -r col1 col2 col3 col4 col5 col6 col7 col8 col9 col10 col11 col12; do
+                    if [[ "$col6" == "+" ]]; then
+                        result="$col1	$((col2 - 1))	$col2"
+                    elif [[ "$col6" == "-" ]]; then
+                        result="$col1	$col3	$((col3 + 1))"
+                    fi
+                    # Append the result to the output file
+                    echo "$result" >> {output}
+                done < {input}
+                """
+
+rule slop_TSS:
+        input:
+                annotated_tss = os.path.join(outDir, "dCRE_overlaps", "annotated_tss.bed")                
+        output:
+                os.path.join(outDir, "dCRE_overlaps", "sloped_annotated_tss.bed")
+        params:
+                g_file = config["BEDtools_g_file"]
+        singularity: config["BEDtools_container"]
+        shell:
+                """
+                bedtools slop -i {input} -b 500 -g {params.g_file} > {output}
+                """
+
+rule split_proximal_CREs:
+        input:
+                CREs = os.path.join(dataDir, "CRE_sets", "{CREs}.bed"),
+                annotated_tss = os.path.join(outDir, "dCRE_overlaps", "sloped_annotated_tss.bed")
+        output:
+                os.path.join(outDir, "dCRE_overlaps", "proximal", "{CREs}.bed")
+        singularity: config["BEDtools_container"]
+        shell:
+                """
+                bedtools intersect -u -a {input.CREs} -b {input.annotated_tss} | uniq > {output}
+                """
+
+rule split_distal_CREs:
+        input:
+                CREs = os.path.join(dataDir, "CRE_sets", "{CREs}.bed"),
+                annotated_tss = os.path.join(outDir, "dCRE_overlaps", "sloped_annotated_tss.bed")
+        output:
+                os.path.join(outDir, "dCRE_overlaps", "distal_cre", "{CREs}.bed")
+        singularity: config["BEDtools_container"]
+        shell:
+                """
+                bedtools intersect -v -a {input.CREs} -b {input.annotated_tss} | uniq > {output}
+                """
+
+rule CRE_overlaps:
+        input:
+                foreground = os.path.join(outDir, "dCRE_overlaps", "{proximity}", "{fore_CREs}.bed"),
+                background = os.path.join(outDir, "dCRE_overlaps", "{proximity}", "{back_CREs}.bed")
+        output:
+                os.path.join(outDir, "dCRE_overlaps", "overlaps", "{proximity}", "{fore_CREs}__{back_CREs}.bed")
+        singularity: config["BEDtools_container"]
+        shell:
+                """
+                bedtools intersect -u -a {input.foreground} -b {input.background} | uniq > {output}
+                """
+
+   
+rule count_CRE_overlaps:
+       input:
+                CRE_sets = expand(os.path.join(outDir, "dCRE_overlaps", "overlaps", "{{proximity}}", "{fore_CREs}__{back_CREs}.bed"), fore_CREs = CRE_SETS, back_CREs = CRE_SETS)
+       output:
+                os.path.join(outDir, "dCRE_overlaps", "overlaps", "{proximity}_overlaps.csv")
+       params:
+                script = os.path.join(scriptsDir, "CRE_set_overlaps.R")
+       singularity: config["Seurat_container"]
+       shell:
+                """
+                Rscript {params.script} \
+                        --output {output} \
+                        --CRE_sets "{input.CRE_sets}"
+                """
+   
+   
+rule plot_CRE_overlaps:
+       input:
+                os.path.join(outDir, "dCRE_overlaps", "overlaps", "{proximity}_overlaps.csv")
+       output:
+                os.path.join(outDir, "results", "dCRE_overlaps", "{proximity}_overlaps.pdf")
+       params:
+                script = os.path.join(scriptsDir, "plot_overlaps_stacked_barchart.R")
+       singularity: config["Seurat_container"]
+       shell:
+                """
+                Rscript {params.script} \
+                        --output {output} \
+                        --input {input}
+                """
+   

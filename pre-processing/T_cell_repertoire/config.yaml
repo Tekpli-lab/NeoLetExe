@@ -1,0 +1,65 @@
+# Directories
+mixcr_tcr_dir: '' # Directory containing MiXCR TCR outputs
+mixcr_bcr_dir: '' # Directory containing MiXCR BCR outputs
+
+seurat_meta: 'Scaled_NeoLetExe_metadata.rds' # Path to seurat metadata with all cells from PP_Seurat_object.r saved as rds
+t_cell_obj: 'Scaled_NL_Tcell.rds' # Path to seurat T cell object from PP_subclustering.r saved as rds
+b_cell_obj: 'Scaled_NL_Bcells_and_plasma.rds' # Path to seurat B cell object from PP_subclustering.r saved as rds
+
+scripts_dir: 'NeoLetExe/pre-processing/T_cell_repertoire/scripts' 
+analysis_dir: 'NeoLetExe/pre-processing/T_cell_repertoire/outs'
+
+# Alignment tool: "mixcr" or "cell_ranger"
+align_tool: "mixcr"
+
+# List of vdj sequencing types
+vdj:
+- "tcr"
+- "bcr"
+
+# leave out module name empty unless using modules
+module_name: module load R-bundle-Bioconductor/3.20-foss-2024a-R-4.4.2
+
+### rule load tcr and bcr ###
+# Removes any cell that has a different number than paired one alpha and one beta chain.
+remove_na: "TRUE" #TRUE - Filter to remove any cell barcode with an NA value in at least one of the chains.
+remove_multi: "TRUE" #TRUE - Filter to remove any cell barcode with more than 2 immune receptor chains.
+filter_multi: "FALSE" #TRUE - Isolate the top 2 expressed chains in cell barcodes with multiple chains.
+time_points: "TRUE" #TRUE - Add a variable timepoint from the sample name, index 6.
+
+### rule load bcr ###
+threshold: 0.85 #The level of similarity in sequences to group together. Default is 0.85.
+
+### rule filter_according_to_clusters ###
+col_name1: "main.ids.cor" # main cell types column name in metadata of seurat clusters
+col_name2: "final.ids" # cell states column in seurat (more detailed than column1)
+t_clusters: "T_cells" # T cell clusters to keep
+b_clusters: "B_cells, Plasma_cells" # B cell clusters to keep
+
+### rule clonal_analysis ###
+### rule repertoire_analysis ###
+clone_call:
+- "aa"
+- "nt"
+- "strict"
+
+### rule repertoire_analysis
+tcr_chains:
+- "TRA"
+- "TRB"
+
+bcr_chains:
+- "IGH"
+- "IGL"
+
+### rule sample_exclusion
+# List of samples to be excluded
+exclusion: TRUE
+t_exclude: "P24A, P01C, P02B, P02C"
+b_exclude: "P24A"
+
+#### rule combine_rna ###
+clone_call_exp: "CTnt"
+
+#### rule seurat_analysis ###
+cluster_names_rule_seurat_analysis: "final.ids"
