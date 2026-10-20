@@ -20,7 +20,6 @@ ARM_CONTRASTS = ["arm_EXE-LET_A_vs_C", "arm_EXE-LET_C_vs_A", "arm_LET-EXE_A_vs_C
 DIFF_CRE_META_CONTRAST = ["response_GR_A_vs_C__vs__response_GR_C_vs_A", "response_BR_A_vs_C__vs__response_BR_C_vs_A", "arm_EXE-LET_A_vs_C__vs__arm_EXE-LET_C_vs_A__ESR1_AR__all__distal_cre", "arm_LET-EXE_A_vs_C__vs__arm_LET-EXE_C_vs_A__ESR1_AR__all__distal_cre"]
 CRE_SETS, = glob_wildcards(os.path.join(dataDir, "CRE_sets", "{CREs}.bed"))
 
-"arm_EXE-LET_A_vs_C__vs__arm_EXE-LET_C_vs_A__ESR1_AR__all__distal_cre", "arm_LET-EXE_A_vs_C__vs__arm_LET-EXE_C_vs_A__ESR1_AR__all__distal_cre"
 include: "snakefile_pycistopic.sk"
 include: "snakefile_dCRE_overlap.sk"
 
@@ -50,15 +49,15 @@ def get_wildcards_from_metadata(var, file = sc_metadata):
 rule all:
         input:
                os.path.join(outDir, "results", "palo_umap", "all_cells__distal_cre__LDA_harmony.pdf"), 																			# Fig. 6 A
-               expand(os.path.join(outDir, "results", "unibind_plots", "{proximity}", "main.ids.cor__{cell_type}__{proximity}.pdf"), cell_type = get_wildcards_from_metadata("main.ids.cor"), proximity = ["distal_cre", "proximal"]),			# Fig. 6 B, C, D, E, Sup. Fig. 14 A, B 
-               expand(os.path.join(outDir, "results", "unibind_plots", "{proximity}", "{contrast}__{proximity}.pdf"), contrast = MALIGANT_CONTRASTS, proximity = ["distal_cre"]), 									# Fig. 6 F,G,H,I,J,K
-               expand(os.path.join(outDir, "results", "boxplots", "{contrast}", "{contrast}__{TF}__{proximity}.pdf"), contrast = ["main.ids.cor__Malignant_cells"], proximity = ["distal_cre"], TF = ["ESR1_AR", "ESR1", "AR"]),		        # Fig. 6 L, M, Sup. Fig. 16 A, B, C, D
-               expand(os.path.join(outDir, "results", "dCRE_overlaps", "{proximity}_overlaps.pdf"), proximity = ["distal_cre"]),															# Sup. Fig. 13 C
-               expand(os.path.join(outDir, "results", "intervene", "Upset_main.ids.cor__{proximity}", "output", "Intervene_upset.pdf"), proximity = ["proximal", "distal_cre"]),									# Sup. Fig. 13 D,E
-               expand(os.path.join(outDir, "results", "unibind_plots", "{proximity}", "{contrast}__{proximity}.pdf"), contrast = CLONE_CONTRASTS, proximity = ["distal_cre"]),                                                                          # Sup. Fig. 15 A,B,C,D
-               expand(os.path.join(outDir, "results", "intervene", "{contrast}__TFBS", "{TF}__{proximity}", "Intervene_upset.pdf"),  contrast = ["main.ids.cor__Malignant_cells"], proximity = ["distal_cre"], TF = ["ESR1_AR_FOXA1"]),			# Sup. Fig. 15 E
-               expand(os.path.join(outDir, "results", "Upset_Stacked_bar_all__{proximity}", "{meta_contrast}__{TF}__all__{proximity}.pdf"), meta_contrast = DIFF_CRE_META_CONTRAST, TF = ["ESR1_AR"], proximity = ["distal_cre"]),			# Sup. Fig. 15 F, 18 E
-               expand(os.path.join(outDir, "results", "unibind_plots", "{proximity}", "{contrast}__{proximity}.pdf"), contrast = ARM_CONTRASTS, proximity = ["distal_cre"])                                                                             # Sup. Fig. 18 A,B,C,D
+               expand(os.path.join(outDir, "results", "unibind_plots", "{proximity}", "main.ids.cor__{cell_type}__{proximity}.pdf"), cell_type = get_wildcards_from_metadata("main.ids.cor"), proximity = ["distal_cre", "proximal"]),			# Fig. 6 B, C, D, E, Sup. Fig. 5 A, B
+               expand(os.path.join(outDir, "results", "unibind_plots", "{proximity}", "{contrast}__{proximity}.pdf"), contrast = MALIGANT_CONTRASTS, proximity = ["distal_cre"]), 									# Fig. 6 F, G, H, I, J, K
+               expand(os.path.join(outDir, "results", "boxplots", "{contrast}", "{contrast}__{TF}__{proximity}.pdf"), contrast = ["main.ids.cor__Malignant_cells"], proximity = ["distal_cre"], TF = ["ESR1_AR", "ESR1", "AR"]),		        # Fig. 6 L, M, Sup. Fig. 6 A, B, C, D
+               expand(os.path.join(outDir, "results", "dCRE_overlaps", "{proximity}_overlaps.pdf"), proximity = ["distal_cre"]),															# Extended Data Fig. 9 C
+               expand(os.path.join(outDir, "results", "intervene", "Upset_main.ids.cor__{proximity}", "output", "Intervene_upset.pdf"), proximity = ["proximal", "distal_cre"]),									# Extended Data Fig. 9 D, E
+               expand(os.path.join(outDir, "results", "unibind_plots", "{proximity}", "{contrast}__{proximity}.pdf"), contrast = CLONE_CONTRASTS, proximity = ["distal_cre"]),                                                                          # Extended Data Fig. 10 A, B, C, D
+               expand(os.path.join(outDir, "results", "intervene", "{contrast}__TFBS", "{TF}__{proximity}", "Intervene_upset.pdf"),  contrast = ["main.ids.cor__Malignant_cells"], proximity = ["distal_cre"], TF = ["ESR1_AR_FOXA1"]),			# Extended Data Fig. 10 E
+               expand(os.path.join(outDir, "results", "Upset_Stacked_bar_all__{proximity}", "{meta_contrast}__{TF}__all__{proximity}.pdf"), meta_contrast = DIFF_CRE_META_CONTRAST, TF = ["ESR1_AR"], proximity = ["distal_cre"]),			# Extended Data Fig. 10 F, Sup. Fig 8 E
+               expand(os.path.join(outDir, "results", "unibind_plots", "{proximity}", "{contrast}__{proximity}.pdf"), contrast = ARM_CONTRASTS, proximity = ["distal_cre"])                                                                             # Sup. Fig. 8 A, B, C, D
 
 
 

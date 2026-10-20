@@ -21,8 +21,8 @@ library(future)
 library(stringi)
 library(tidyverse)
 
-d1 <- read.table("SCAFE/enichment_proximal_ids/main.ids.cor__Malignant_cells__proximal.tsv", sep = '\t', header = TRUE, fill = TRUE)
-d2 <- read.table("SCAFE/enrichment_distals_ids/main.ids.cor__Malignant_cells.tsv", sep = '\t', header = TRUE, fill = TRUE)
+d1 <- read.table("SCAFE/enichment_proximal_ids/improved_main_ids__Malignant_cells__proximal.tsv", sep = '\t', header = TRUE, fill = TRUE)
+d2 <- read.table("SCAFE/enrichment_distals_ids/improved_main_ids__Malignant_cells.tsv", sep = '\t', header = TRUE, fill = TRUE)
 ### available from PP_snakemake_scafe
 
 d2$oddsRatio <- (-d2$oddsRatio)
@@ -175,8 +175,8 @@ library(future)
 library(stringi)
 library(tidyverse)
 
-d1 <- read.table("SCAFE/enichment_proximal_ids/main.ids.cor__T_cells__proximal.tsv", sep = '\t', header = TRUE, fill = TRUE)
-d2 <- read.table("SCAFE/enrichment_distals_ids/main.ids.cor__T_cells.tsv", sep = '\t', header = TRUE, fill = TRUE)
+d1 <- read.table("SCAFE/enichment_proximal_ids/improved_main_ids__T_cells__proximal.tsv", sep = '\t', header = TRUE, fill = TRUE)
+d2 <- read.table("SCAFE/enrichment_distals_ids/improved_main_ids__T_cells.tsv", sep = '\t', header = TRUE, fill = TRUE)
 ### available from PP_snakemake_scafe
 
 d2$oddsRatio <- (-d2$oddsRatio)
@@ -332,8 +332,8 @@ library(future)
 library(stringi)
 library(tidyverse)
 
-d1 <- read.table("SCAFE/enichment_proximal_ids/main.ids.cor__Myeloid__proximal.tsv", sep = '\t', header = TRUE, fill = TRUE)
-d2 <- read.table("SCAFE/enrichment_distals_ids/main.ids.cor__Myeloid.tsv", sep = '\t', header = TRUE, fill = TRUE)
+d1 <- read.table("SCAFE/enichment_proximal_ids/improved_main_ids__Myeloid__proximal.tsv", sep = '\t', header = TRUE, fill = TRUE)
+d2 <- read.table("SCAFE/enrichment_distals_ids/improved_main_ids__Myeloid.tsv", sep = '\t', header = TRUE, fill = TRUE)
 ### available from PP_snakemake_scafe
 
 d2$oddsRatio <- (-d2$oddsRatio)
@@ -491,8 +491,8 @@ library(future)
 library(stringi)
 library(tidyverse)
 
-d1 <- read.table("C:/Xavier/single_cells/analysis/Files3.0/Results/NeoLetEXe_final2/SCAFE/enichment_proximal_ids/main.ids.cor__Fibroblasts__proximal.tsv", sep = '\t', header = TRUE, fill = TRUE)
-d2 <- read.table("C:/Xavier/single_cells/analysis/Files3.0/Results/NeoLetEXe_final2/SCAFE/enrichment_distals_ids/main.ids.cor__Fibroblasts.tsv", sep = '\t', header = TRUE, fill = TRUE)
+d1 <- read.table("C:/Xavier/single_cells/analysis/Files3.0/Results/NeoLetEXe_final2/SCAFE/enichment_proximal_ids/improved_main_ids__Fibroblasts__proximal.tsv", sep = '\t', header = TRUE, fill = TRUE)
+d2 <- read.table("C:/Xavier/single_cells/analysis/Files3.0/Results/NeoLetEXe_final2/SCAFE/enrichment_distals_ids/improved_main_ids__Fibroblasts.tsv", sep = '\t', header = TRUE, fill = TRUE)
 ### available from PP_snakemake_scafe
 
 d2$oddsRatio <- (-d2$oddsRatio)
@@ -993,21 +993,21 @@ library(Seurat)
 library(plyr)
 library(dplyr)
 library(future)
-library(ggplot2)
-library(ggrepel)
-library(stringi)
+library (ggplot2)
+library (ggrepel)
+library (stringi)
 library(tidyverse)
 library(ggsignif)
 
-dat <- readRDS(file.path("analysis", "results", "boxplots", "main.ids.cor__response", "response__main.ids.cor__ESR1_AR__distal_cre.rds"))
-  ### available from PP_snakemake_scafe
+dat <- readRDS("SCAFE/TF_time_boxplots/data/Malignant_cells__ESR1_AR_FOXA1.rds")
+### available from PP_snakemake_scafe
 
-dat$active_prop <- dat$active_set / dat$active_CRE
+dat$ESR1_nCells <- dat$TF / dat$nCells
 dat_GR <- dat[dat$response=="GR",]
 
-pAB <- wilcox.test(dat_GR[dat_GR$time_point=="A", colnames (dat_GR)=="active_prop"], dat_GR[dat_GR$time_point=="B", colnames (dat_GR)=="active_prop"], paired = F)[3]
-pBC <- wilcox.test(dat_GR[dat_GR$time_point=="B", colnames (dat_GR)=="active_prop"], dat_GR[dat_GR$time_point=="C", colnames (dat_GR)=="active_prop"], paired = F)[3]
-pAC <- wilcox.test(dat_GR[dat_GR$time_point=="A", colnames (dat_GR)=="active_prop"], dat_GR[dat_GR$time_point=="C", colnames (dat_GR)=="active_prop"], paired = F)[3]
+pAB <- wilcox.test(dat_GR[dat_GR$time_point=="A", colnames (dat_GR)=="ESR1_nCells"], dat_GR[dat_GR$time_point=="B", colnames (dat_GR)=="ESR1_nCells"], paired = F)[3]
+pBC <- wilcox.test(dat_GR[dat_GR$time_point=="B", colnames (dat_GR)=="ESR1_nCells"], dat_GR[dat_GR$time_point=="C", colnames (dat_GR)=="ESR1_nCells"], paired = F)[3]
+pAC <- wilcox.test(dat_GR[dat_GR$time_point=="A", colnames (dat_GR)=="ESR1_nCells"], dat_GR[dat_GR$time_point=="C", colnames (dat_GR)=="ESR1_nCells"], paired = F)[3]
 pvalues <- c(pAB, pBC, pAC)
 
 dat_GR_complete <- dat_GR %>% complete(patient_number, time_point)
@@ -1020,15 +1020,15 @@ point_fill_colors <- c('#FF8077', '#E66CE1', '#7E33FF')
 
 pdf('Figure 6L Boxplot ESR1_FOXA1_AR score GR .pdf')
 
-a <- ggplot(dat_GR, aes(time_point, active_prop, label = patient_number)) + 
+a <- ggplot(dat_GR, aes(time_point, ESR1_nCells, label = patient_number)) + 
  geom_boxplot(color = outline_colors, 
                fill = box_fill_colors, 
                alpha = 0.5, size = 1.5) + 
   geom_point(aes(fill = factor(time_point), colour = factor(time_point)), 
-             shape = 21, size = 5, stroke = 1.2) + 
+             shape = 21, size = 5, stroke = 1.2) +  
   scale_fill_manual(values = point_fill_colors) +
   scale_colour_manual(values = outline_colors) + 
-  ylab('Percentage of malignant cells') +
+  ylab('Percentage of malignant cells')+ 
   geom_text_repel(min.segment.length = 1, max.overlaps = Inf) + 
   scale_x_discrete(labels = c("A" = "A", "B" = "B", "C" = "C")) +
   theme(
@@ -1067,15 +1067,15 @@ library (stringi)
 library(tidyverse)
 library(ggsignif)
 
-dat <- readRDS(file.path("analysis", "results", "boxplots", "main.ids.cor__response", "response__main.ids.cor__ESR1_AR__distal_cre.rds"))
+dat <- readRDS("SCAFE/TF_time_boxplots/data/Malignant_cells__ESR1_AR_FOXA1.rds")
 ### available from PP_snakemake_scafe
 
-dat$active_prop <- dat$active_set / dat$active_CRE
+dat$ESR1_nCells <- dat$TF / dat$nCells
 dat_BR <- dat[dat$response=="BR",]
 
-pAB <- wilcox.test(dat_BR[dat_BR$time_point=="A", colnames (dat_BR)=="active_prop"], dat_BR[dat_BR$time_point=="B", colnames (dat_BR)=="active_prop"], paired = F)[3]
-pBC <- wilcox.test(dat_BR[dat_BR$time_point=="B", colnames (dat_BR)=="active_prop"], dat_BR[dat_BR$time_point=="C", colnames (dat_BR)=="active_prop"], paired = F)[3]
-pAC <- wilcox.test(dat_BR[dat_BR$time_point=="A", colnames (dat_BR)=="active_prop"], dat_BR[dat_BR$time_point=="C", colnames (dat_BR)=="active_prop"], paired = F)[3]
+pAB <- wilcox.test(dat_BR[dat_BR$time_point=="A", colnames (dat_BR)=="ESR1_nCells"], dat_BR[dat_BR$time_point=="B", colnames (dat_BR)=="ESR1_nCells"], paired = F)[3]
+pBC <- wilcox.test(dat_BR[dat_BR$time_point=="B", colnames (dat_BR)=="ESR1_nCells"], dat_BR[dat_BR$time_point=="C", colnames (dat_BR)=="ESR1_nCells"], paired = F)[3]
+pAC <- wilcox.test(dat_BR[dat_BR$time_point=="A", colnames (dat_BR)=="ESR1_nCells"], dat_BR[dat_BR$time_point=="C", colnames (dat_BR)=="ESR1_nCells"], paired = F)[3]
 pvalues <- c(pAB, pBC, pAC)
 
 dat_BR_complete <- dat_BR %>% complete(patient_number, time_point)
@@ -1087,9 +1087,9 @@ point_fill_colors <- c('#FF8077', '#E66CE1', '#7E33FF')
 
 
 
-pdf('Figure 6M Boxplot ESR1_AR score BR .pdf')
+pdf('Figure 6M Boxplot ESR1_FOXA1_AR score BR .pdf')
 
-a <- ggplot(dat_BR, aes(time_point, active_prop, label = patient_number)) + 
+a <- ggplot(dat_BR, aes(time_point, ESR1_nCells, label = patient_number)) + 
  geom_boxplot(color = outline_colors, 
                fill = box_fill_colors, 
                alpha = 0.5, size = 1.5) + 
